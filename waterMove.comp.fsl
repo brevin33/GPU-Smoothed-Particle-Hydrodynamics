@@ -1,0 +1,98 @@
+
+#include "water.comp.h.fsl"
+
+
+NUM_THREADS(32, 1, 1)
+void CS_MAIN( SV_DispatchThreadID(uint3) DTid) 
+{
+	INIT_MAIN;
+
+	// pressure force
+	float3 force1 = float3(0,0,0);
+	float3 force2 = float3(0,0,0);
+	Particle p1 = Get(Particles)[DTid.x];
+	int3 cellID = GetCellIndex(p1.pos);
+	float Spiky_constant = (-45 / (PI * pow(Get(smoothingRadius), 6)));
+	uint used[27];
+	uint j = 0;
+	for(int x = -1; x <= 1; x++){
+		for(int y = -1; y <= 1; y++){
+			for(int z = -1; z <= 1; z++){
+				int3 checkCellID = cellID + int3(x,y,z);
+				uint flatCheckCellID = getFlatCellIndex(checkCellID);
+				bool alreadyChecked = false;
+				for(uint i = 0; i < j; i++){
+					alreadyChecked = alreadyChecked || flatCheckCellID == used[i];
+				}
+				used[j] = flatCheckCellID;
+				if(alreadyChecked) continue;
+				j++;
+				Cell cellToCheck = Cells[flatCheckCellID];
+				for(uint i = 0; i < cellToCheck.count; i++){
+					uint id = ParticleIDs[cellToCheck.dataPos+i];
+					if(id == DTid.x) continue;
+					Particle p2 = Get(Particles)[id];
+					float3 diff = (p1.pos + p1.vel * LOOK_AHEAD) - (p2.pos + p2.vel * LOOK_AHEAD);
+					float r2 = dot(diff, diff);
+					float r = sqrt(r2);
+
+					if(r > 0 && r < Get(smoothingRadius)){
+						float3 rNorm = diff / r;
+						float W = Spiky_constant * pow(Get(smoothingRadius) - r, 2);
+
+						force1 += ((p1.pressure + p2.pressure) / (2 * p1.density * p2.density)) * W * rNorm;
+
+						float r3 = r2 * r;
+
+						float h2 = Get(smoothingRadius) * Get(smoothingRadius);
+
+						float h3 = Get(smoothingRadius) * Get(smoothingRadius) * Get(smoothingRadius);
+
+						W = -(r3 / (2.0f * h3)) + (r2 / h2) + (Get(smoothingRadius) / (2.0f * r)) - 1.0f;
+
+						force2 += (1.0f / p2.density) * (p2.vel - p1.vel) * W * rNorm;
+						force2 -= (1.0f / p1.density) * (p1.vel - p2.vel) * W * rNorm;
+					}
+				}
+			}
+		}
+	}
+	force1 = -force1;
+	force2 *= Get(viscosity);
+
+	float3 lastPos = p1.pos;
+
+	p1.vel += (((force1 + force2)/p1.density) + float3(0,-9.8f,0)) * Get(dt);
+	p1.vel -=  sign(p1.vel) * min((p1.vel.x + p1.vel.y + p1.vel.z) * (p1.vel.x + p1.vel.y + p1.vel.z) * Get(dragCo) * Get(dt), length(p1.vel));
+
+	float wallConst = 0.65f;
+
+	if(p1.pos.x > Get(width)){
+		p1.vel.x = -abs(p1.vel.x) * wallConst - bump;
+	}
+	if(p1.pos.y > Get(height)){
+		p1.vel.y = -abs(p1.vel.y) * wallConst - bump;
+	}
+	if(p1.pos.z > Get(depth)){
+		p1.vel.z = -abs(p1.vel.z) * wallConst - bump;
+	}
+	if(p1.pos.x < 0){
+		p1.vel.x = abs(p1.vel.x) * wallConst + bump;
+	}
+	if(p1.pos.y < 0){
+		p1.vel.y = abs(p1.vel.y) * wallConst + bump;
+	}
+	if(p1.pos.z < 0){
+		p1.vel.z = abs(p1.vel.z) * wallConst + bump;
+	}
+
+	float3 oldPos = p1.pos;
+	p1.pos = p1.pos + p1.vel * Get(dt);
+	p1.pos = clamp(p1.pos,  float3(-0.1f,-0.1f,-0.1f), float3(Get(width+0.1f), Get(height+0.1f), Get(depth+0.1f)));
+
+	Get(Particles)[DTid.x] = p1;
+
+
+
+	RETURN();
+}

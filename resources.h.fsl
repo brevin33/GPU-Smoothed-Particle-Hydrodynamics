@@ -1,0 +1,34 @@
+
+
+#ifndef RESOURCES_H
+#define RESOURCES_H
+
+// UPDATE_FREQ_NONE
+RES(Tex2D(float4), RightText, UPDATE_FREQ_NONE, t1, binding = 1);
+RES(Tex2D(float4), LeftText,  UPDATE_FREQ_NONE, t2, binding = 2);
+RES(Tex2D(float4), TopText,   UPDATE_FREQ_NONE, t3, binding = 3);
+RES(Tex2D(float4), BotText,   UPDATE_FREQ_NONE, t4, binding = 4);
+RES(Tex2D(float4), FrontText, UPDATE_FREQ_NONE, t5, binding = 5);
+RES(Tex2D(float4), BackText,  UPDATE_FREQ_NONE, t6, binding = 6);
+RES(SamplerState,  uSampler0, UPDATE_FREQ_NONE, s0, binding = 7);
+
+// UPDATE_FREQ_PER_FRAME
+#ifndef MAX_PLANETS
+    #define MAX_PLANETS 20
+#endif
+
+CBUFFER(uniformBlock, UPDATE_FREQ_PER_FRAME, b0, binding = 0)
+{
+#if FT_MULTIVIEW
+    DATA(float4x4, mvp[VR_MULTIVIEW_COUNT], None);
+#else
+    DATA(float4x4, mvp, None);
+#endif
+#if !defined(SKY_SHADER)
+	DATA(float, aspectRatio1, None);
+    DATA(float, aspectRatio2, None);
+    DATA(float, size, None);
+#endif
+};
+
+#endif

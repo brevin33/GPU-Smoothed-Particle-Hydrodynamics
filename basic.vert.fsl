@@ -1,0 +1,46 @@
+
+#include "resources.h.fsl"
+
+STRUCT(VSInput)
+{
+	DATA(float2, PositionVert,   POSITION);
+};
+
+struct Particle
+{
+    float3 pos;
+    float density;
+    float3 vel;
+    float pressure;
+};
+
+RES(Buffer(Particle), Particles, UPDATE_FREQ_PER_DRAW, t0, binding = 1);
+
+
+STRUCT(VSOutput)
+{
+	DATA(float4, Position, SV_Position);
+	DATA(float4, Color,    COLOR);
+    DATA(float2, UV,       TEXCOORD0);
+};
+
+VSOutput VS_MAIN( VSInput In, SV_InstanceID(uint) InstanceID )
+{
+    INIT_MAIN;
+    VSOutput Out;
+
+#if FT_MULTIVIEW
+    float4x4 tempMat = Get(mvp)[VR_VIEW_ID];
+#else
+    float4x4 tempMat = Get(mvp);
+#endif
+    float2 quad = float2(In.PositionVert.x * Get(aspectRatio1), In.PositionVert.y * Get(aspectRatio2));
+    Out.Position = mul(tempMat, float4(Particles[InstanceID].pos * 7.0f, 1.0f)) + float4(quad * Get(size),0,0);
+    Out.UV = In.PositionVert;
+
+    float3 color1 = float3(1.0f,0.5f,0.0f);
+    float3 color2 = float3(0.0f,0.0f,1.0f);
+
+    Out.Color = float4(lerp(color2,color1, pow(Particles[InstanceID].vel.x * Particles[InstanceID].vel.x + Particles[InstanceID].vel.y * Particles[InstanceID].vel.y + Particles[InstanceID].vel.z * Particles[InstanceID].vel.z,2)/62500.2f), 1.0);
+    RETURN(Out);
+}

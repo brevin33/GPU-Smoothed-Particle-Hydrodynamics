@@ -1,0 +1,58 @@
+
+
+#ifndef WATERCOMP_H
+#define WATERCOMP_H
+
+#define PI 3.14159265359f
+#define GRID_WIDTH 25
+#define NUM_CELLS 8192
+#define LOOK_AHEAD 0.04f
+struct Particle
+{
+    float3 pos;
+    float density;
+    float3 vel;
+    float pressure;
+};
+
+struct Cell
+{
+    uint count;
+    uint dataPos;
+};
+
+RES(RWBuffer(Particle), Particles, UPDATE_FREQ_PER_DRAW, u0, binding = 0);
+RES(RWBuffer(Cell), Cells, UPDATE_FREQ_PER_DRAW, u1, binding = 1);
+RES(RWBuffer(uint), ParticleIDs, UPDATE_FREQ_PER_DRAW, u2, binding = 2);
+RES(RWBuffer(uint), CellSum, UPDATE_FREQ_PER_DRAW, u3, binding = 3);
+
+CBUFFER(uniformBlock, UPDATE_FREQ_PER_DRAW, b0, binding = 4)
+{
+        DATA(float, dt, None);
+        DATA(float, width, None);
+        DATA(float, height, None);
+        DATA(float, depth, None);
+        DATA(float, pressureMult, None);
+        DATA(float, smoothingRadius, None);
+        DATA(float, desiredDensity, None);
+        DATA(float, dragCo, None);
+        DATA(float, bump, None);
+        DATA(float, viscosity, None);
+};
+
+int3 GetCellIndex(float3 pos){
+	return int3(pos / (Get(smoothingRadius)));
+}
+
+uint getFlatCellIndex(int3 cellIndex)
+{
+  const uint p1 = 73856093; // some large primes
+  const uint p2 = 19349663;
+  const uint p3 = 83492791;
+  uint n = p1 * cellIndex.x ^ p2*cellIndex.y ^ p3*cellIndex.z;
+  n %= NUM_CELLS;
+  return n;
+}
+
+
+#endif
