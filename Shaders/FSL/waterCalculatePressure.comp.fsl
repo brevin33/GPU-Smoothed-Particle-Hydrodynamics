@@ -1,0 +1,46 @@
+
+
+#include "water.comp.h.fsl"
+
+
+NUM_THREADS(32, 1, 1)
+void CS_MAIN( SV_DispatchThreadID(uint3) DTid) 
+{
+	INIT_MAIN;
+	Particle p1 = Get(Particles)[DTid.x];
+	p1.density = 0;
+	float Poly6_constant = (315.0f / (64.0f * PI * pow(Get(smoothingRadius),9)));
+	int3 cellID = GetCellIndex(p1.pos);
+	uint used[27];
+	uint j = 0;
+	for(int x = -1; x <= 1; x++){
+		for(int y = -1; y <= 1; y++){
+			for(int z = -1; z <= 1; z++){
+				int3 checkCellID = cellID + int3(x,y,z);
+				uint flatCheckCellID = getFlatCellIndex(checkCellID);
+				bool alreadyChecked = false;
+				for(uint i = 0; i < j; i++){
+					alreadyChecked = alreadyChecked || flatCheckCellID == used[i];
+				}
+				used[j] = flatCheckCellID;
+				if(alreadyChecked) continue;
+				j++;
+				Cell cellToCheck = Cells[flatCheckCellID];
+				for(uint i = 0; i < cellToCheck.count; i++){
+					Particle p2 = Get(Particles)[ParticleIDs[cellToCheck.dataPos+i]];
+					float3 diff = (p1.pos + p1.vel * LOOK_AHEAD) - (p2.pos + p2.vel * LOOK_AHEAD);
+					float r2 = dot(diff,diff);
+					if(r2 < Get(smoothingRadius)*Get(smoothingRadius)){
+						float W = Poly6_constant * pow(Get(smoothingRadius)*Get(smoothingRadius) - r2, 3);
+						p1.density += W;
+					}
+				}
+			}
+		}
+	}
+	p1.density = max(Get(desiredDensity), p1.density);
+	p1.pressure = Get(pressureMult) * (p1.density - Get(desiredDensity));
+	Get(Particles)[DTid.x] = p1;
+
+	RETURN();
+}
